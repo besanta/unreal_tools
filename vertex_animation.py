@@ -139,6 +139,25 @@ def main(context):
     packUVs(exportMesh)
     morphData = buildMorphData(data, morphList)
     bakeMorphData(data, exportMesh, scene, morphData)
+    
+def PaintSelectedSequence(context):
+    scene = context.scene
+    data = bpy.data
+    selectedObjects = sorted(context.selected_objects,key=lambda x: x.name)
+    pos = 0
+    u = 0
+    v = 0
+    for obj in selectedObjects:
+        while len(obj.data.uv_layers.items()) < 3:
+            obj.data.uv_textures.new()
+            
+        for poly in obj.data.polygons:
+            for vertId, loopId in zip(poly.vertices, poly.loop_indices):
+                obj.data.uv_layers[2].data[loopId].uv = (u, v)
+        u = pos + 0.5
+        pos+=1
+    return 0
+    
 
 #create operator class for panel button    
 class UT_ProcessMeshesOperator(Operator):
@@ -160,6 +179,29 @@ class UT_ProcessMeshesOperator(Operator):
                         
         else:
             main(context)
+            
+            return {'FINISHED'}
+        
+#create operator class for panel button    
+class UT_PaintSelectionSequence(Operator):
+    bl_label = "Paint Selected Sequence"
+    bl_idname = "unreal_tools.paint_selected_sequence"
+    
+    @classmethod
+    def poll(cls, context):
+        return True in [object.type == 'MESH' for object in context.selected_objects] and context.mode == 'OBJECT' and len(context.selected_objects) > 1
+    
+    def execute(self, context):
+        units = context.scene.unit_settings
+        
+        if units.system != 'METRIC' or round(units.scale_length, 2) != 0.01:
+            
+            self.report({'ERROR'}, "Scene units must be Metric with a Unit Scale of 0.01!")
+        
+            return {'CANCELLED'}
+                        
+        else:
+            PaintSelectedSequence(context)
             
             return {'FINISHED'}
 
@@ -184,15 +226,21 @@ class UT_VertexAnimPanel(Panel):
         row = layout.row()
         row.scale_y = 1.5
         row.operator("unreal_tools.process_anim_meshes")
+        
+        row = layout.row()
+        row.scale_y = 1.5
+        row.operator("unreal_tools.paint_selected_sequence")
 
 #create register functions for adding and removing script          
 def register():
     bpy.utils.register_class(UT_VertexAnimPanel)
     bpy.utils.register_class(UT_ProcessMeshesOperator)
+    bpy.utils.register_class(UT_PaintSelectionSequence)
     
 def unregister():
     bpy.utils.unregister_class(UT_VertexAnimPanel)
     bpy.utils.unregister_class(UT_ProcessMeshesOperator)
+    bpy.utils.unregister_class(UT_PaintSelectionSequence)
     
 if __name__ == "__main__":
     register()
